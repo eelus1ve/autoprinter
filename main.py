@@ -796,14 +796,19 @@ def main(page: ft.Page):
 		else:
 			name = e.path.split("\\")[-1]
 			select_floader.value = f"{language.pf_work_file}{name}\n{language.pf_work_path}{e.path}"
+			w_path = select_floader.value.split(language.pf_work_path)[1]
 			if (select_file.value != None and select_file.value != language.pf_no_template) and (select_floader.value != language.pf_no_work and select_floader.value != None and "None" not in select_floader.value):
 				page.floating_action_button.disabled = False
-				w_path = select_floader.value.split(language.pf_work_path)[1]
 			else:
 				page.floating_action_button.disabled = True
 				change_progress(2)
 				page.navigation_bar = change_nav(2, 2)
 		page.update()
+
+	file_img = ft.FilePicker(on_result=pick_img)
+	floader = ft.FilePicker(on_result=pick_folder)
+	page.overlay.append(file_img)
+	page.overlay.append(floader)
 
 	def gen_floader_page():
 		global file_img, floader
@@ -1056,11 +1061,6 @@ def main(page: ft.Page):
 
 	page.on_app_lifecycle_state_change = page_close
 	start_log_func()
-
-	file_img = ft.FilePicker(on_result=pick_img)
-	floader = ft.FilePicker(on_result=pick_folder)
-	page.overlay.append(file_img)
-	page.overlay.append(floader)
 
 	change_button("NEXT", ft.icons.ARROW_FORWARD, new_progress)
 	page.navigation_bar = change_nav()
