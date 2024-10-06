@@ -1,30 +1,22 @@
 import flet as ft
-# from core.gui.components.first_page import *
 import base64
 from io import BytesIO
-
 import time
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import os
-import ctypes
-from ctypes.wintypes import MAX_PATH
 from PIL import Image, ImageWin, ImageOps
 import json
 import win32print
 import win32con
 import win32ui
-import datetime
-import os
-from multiprocessing import Process
 import asyncio
-clear = lambda: os.system('cls')
-from numberfield_flet import NumberField
+from typing import Literal, Callable
 
 
 def main(page: ft.Page):
-	global global_area, save_size_mode, worked_area, sizes, path_template, rgb_mode, printers, printer, config_name, log_path, language, theme, select_file, select_floader, image_holder_settings, image_holder_floader, set_image, conf_open, start_b, rg_pr, sl_wa_wh, sl_wa_hg, sl_sz_wh, sl_sz_hg, sl_tr, end_tb, cb_rgb, dd_ss, dd_lang, dd_conf, w_path, sl_ss_mod, progress, floader, file_img, tf_wa_wh, tf_wa_hg, tf_sz_wh, tf_sz_hg, tf_ss_mod, tf_tr, tr
-	
+	global global_area, save_size_mode, worked_area, sizes, path_template, rgb_mode, printers, printer, config_name, log_path, language, theme, select_file, select_floader, image_holder_settings, image_holder_floader, set_image, conf_open, start_b, rg_pr, sl_wa_wh, sl_wa_hg, sl_sz_wh, sl_sz_hg, sl_tr, end_tb, cb_rgb, dd_ss, dd_lang, dd_conf, w_path, sl_ss_mod, progress, floader, file_img, tf_wa_wh, tf_wa_hg, tf_sz_wh, tf_sz_hg, tf_ss_mod, tf_tr, tr, welc_row, zow
+ 
 	printers = [i for i in win32print.EnumPrinters(3)]
 
 	start_b = False
@@ -39,8 +31,6 @@ def main(page: ft.Page):
 
 	rgb_mode = True
 	save_size_mode = "16:9"
-	test_mode = False
-
 
 	progress = [False, False, False, False]
 	dd_lang = None
@@ -64,6 +54,21 @@ def main(page: ft.Page):
 	tf_sz_hg = None
 	tf_tr = None
 	tr=0
+	zow = False
+
+	page.title = "Autoprinter"
+	page.vertical_alignment = ft.MainAxisAlignment.CENTER
+	page.theme_mode = theme
+	page.window.min_wight = 1053
+	page.window.min_height = 590
+	page.window.width = 1124
+	page.window.height = 720
+
+	progress = [False, False, False, False]
+
+
+	welc = {"dark": "#a0cafd", "light": "#001d36"}
+	welc_row = ft.Row([ft.Text("WELCOME", color=welc[page.theme_mode], size=50), ], alignment=ft.MainAxisAlignment.CENTER)
 
 	select_file = ft.Text()
 	select_floader = ft.Text()
@@ -71,10 +76,43 @@ def main(page: ft.Page):
 	image_holder_floader = ft.Image(width=100, height=100, visible=False, fit=ft.ImageFit.CONTAIN)
 
 
-
 	global_area = (768, 1024)
-	worked_area = (10, 10)
-	sizes = (378, 268)
+	worked_area = (2, 2)
+	sizes = (1, 1)
+
+	class NumberField(ft.TextField):
+		def __init__(self,
+					on_change: Callable[[ft.ControlEvent], None] = None,
+					input_type: Literal["int", "float"] = "int",
+					**kwargs):
+			super().__init__(**kwargs)
+
+			if input_type not in ("int", "float"):
+				raise ValueError("Input must be 'int' or 'float'")
+
+			self.input_type = input_type
+			self.keyboard_type = ft.KeyboardType.NUMBER
+
+			self.custom_on_change = self._custom_on_change
+			self.user_on_change = on_change
+			self.last_value = self.value
+
+		def _custom_on_change(self, e):
+			try:
+				e.control.value = int(e.control.value) if self.input_type == "int" else float(e.control.value)
+			except ValueError as er:
+				e.control.value = (0 if er.args == ("invalid literal for int() with base 10: ''", ) else self.last_value)
+				e.control.update()
+				if self.user_on_change:
+					self.user_on_change(e)
+			else:
+				self.last_value = e.control.value
+				if self.user_on_change:
+					self.user_on_change(e)
+
+		def build(self):
+			self.on_change = self.custom_on_change
+			return super().build()
 
 	class TextIntoSlider(NumberField):
 		def __init__(self, value=None, **kwargs):
@@ -97,6 +135,7 @@ def main(page: ft.Page):
 			self.fp_lang = "Выберите язык"
 			self.fp_config = "Выберите конфиг"
 			self.fp_dark_mode = "Тёмная тема"
+			self.fp_zow = "Сохранять размеры окна"
 			self.fp_no_conf = "Продолжить без конфига"
 			
 			self.printer = "Принтера нет в списке"
@@ -117,7 +156,7 @@ def main(page: ft.Page):
 			self.set_up = "Отступ сверху"
 			self.set_wight = "Ширина изображения"
 			self.set_height = "Высота изображения"
-			self.set_trans = "Прозрачность"
+			self.set_trans = "Цвет"
 			self.set_rgb = "RGB мод"
 			self.set_ssm = "Режим сохранения сторон"
 			self.set_button = "Открыть изображение"
@@ -151,6 +190,7 @@ def main(page: ft.Page):
 				self.fp_lang = "Виберіть мову"
 				self.fp_config = "Виберіть конфігурацію"
 				self.fp_dark_mode = "Темна тема"
+				self.fp_zow = "Зберігати розміри вікна"
 				self.fp_no_conf = "Продовжити без конфігурації"
 				
 				self.printer = "Принтера немає в списку"
@@ -171,7 +211,7 @@ def main(page: ft.Page):
 				self.set_up = "Відступ зверху"
 				self.set_wight = "Ширина зображення"
 				self.set_height = "Висота зображення"
-				self.set_trans = "Прозорість"
+				self.set_trans = "Колір"
 				self.set_rgb = "RGB мод"
 				self.set_ssm = "Режим збереження сторін"
 				self.set_button = "Відкрити зображення"
@@ -206,6 +246,7 @@ def main(page: ft.Page):
 				self.fp_lang = "Select language"
 				self.fp_config = "Select a config"
 				self.fp_dark_mode = "Dark Theme"
+				self.fp_zow = "Save window sizes"
 				self.fp_no_conf = "Continue without config"
 
 				self.printer = "The printer is not in the list"
@@ -226,7 +267,7 @@ def main(page: ft.Page):
 				self.set_up = "Top indentation"
 				self.set_wight = "Image width"
 				self.set_height = "Image height"
-				self.set_trans = "Transparency"
+				self.set_trans = "Color"
 				self.set_rgb = "RGB mode"
 				self.set_ssm = "Side saving mode"
 				self.set_button = "Open Image"
@@ -247,13 +288,14 @@ def main(page: ft.Page):
 
 		def py_to_lang(self, _bool):
 			return (self.on if _bool else self.off)
+
 	class EventHandler(FileSystemEventHandler):
 		def on_any_event(self, event):
 			if event.event_type == "created" and not event.is_directory:
 				global w_path
 				l = len(w_path) if w_path[-1] == "\\" else len(w_path)+1
 				if event.src_path[l:].split(".")[-1].upper() in ["JPG", "JPEG", "PNG", "WEBP", "GIF", "RAW", "TIFF", "PSD", "SVG", "EPS", "PDF", "AI", "CDR"]:
-					work_with_file(event.src_path[l:])
+					work_with_image(event.src_path)
 
 	async def on_folder_update():
 		global w_path, start_b
@@ -268,16 +310,19 @@ def main(page: ft.Page):
 					break
 				await asyncio.sleep(1)
 		except KeyboardInterrupt as e:
-			add_log(e)
+			# add_log(e)
 			observer.stop()
 		observer.join()
 
 	def start_log_func():
-		global log_path, language, theme
+		global log_path, language, theme, zow
 		log_path = os.getenv('APPDATA')
 		if not "WaveTeam" in os.listdir(log_path):
 			os.mkdir(f"{log_path}/WaveTeam")
 		log_path = f"{log_path}/WaveTeam"
+		if not "AutoPrinter" in os.listdir(log_path):
+			os.mkdir(f"{log_path}/AutoPrinter")
+		log_path = f"{log_path}/AutoPrinter"
 		if not os.path.exists(log_path+"/presets.json"):
 			with open(log_path+"/presets.json", "w") as file:
 				file.write('{}')
@@ -291,14 +336,17 @@ def main(page: ft.Page):
 			if data == {}:
 				data = {
 					"lang": "ru",
-					"theme": "dark"
+					"theme": "dark",
+					"zow": ((1124, 720), False)
 				}
 				with open(log_path+"/presets.json", "w") as file:
 					json.dump(data, file, indent=4)
 			language = Lang(data["lang"])
 			theme = data["theme"]
-		# log_path = f"{log_path}/WaveTeam"
-			# open(log_path+"\\logs.txt", "a").close()
+			zow = data["zow"][1]
+			if zow:
+				page.window.width = data["zow"][0][0]
+				page.window.height = data["zow"][0][1]
 
 	def work_with_test_image():
 		global global_area, save_size_mode, worked_area, sizes, path_template, rgb_mode, tr
@@ -320,15 +368,16 @@ def main(page: ft.Page):
 			i = 1
 			while (a/i > sizes[0]) or (b/i > sizes[1]):
 				i+=0.25
-			low_res_img = cropped_img.resize((int(a//i), int(b//i)))
+			if 0 not in ((int(a//i), int(b//i))):
+				low_res_img = cropped_img.resize((int(a//i), int(b//i)))
+			else:
+				low_res_img = cropped_img.resize(sizes)
 		else:
 			low_res_img = cropped_img.resize(sizes)
 		if not rgb_mode:
 			low_res_img = ImageOps.grayscale(low_res_img)
 			img = ImageOps.grayscale(img)
 		img.paste(low_res_img, worked_area)
-		# if test_mode:
-		#     img.show()
 		return img
 
 	def work_with_image(path_file, t=2):
@@ -349,15 +398,17 @@ def main(page: ft.Page):
 			i = 1
 			while (a/i > 504) or (b/i > 264):
 				i+=0.25
-			low_res_img = cropped_img.resize((int(a//i), int(b//i)))
+			if 0 not in ((int(a//i), int(b//i))):
+				low_res_img = cropped_img.resize((int(a//i), int(b//i)))
+			else:
+				low_res_img = cropped_img.resize(sizes)
 		else:
 			low_res_img = cropped_img.resize(sizes)
 		if not rgb_mode:
 			low_res_img = ImageOps.grayscale(low_res_img)
 			img = ImageOps.grayscale(img)
 		img.paste(low_res_img, worked_area)
-		img.show()
-		# work_with_printer(img, path_file) 
+		work_with_printer(img, path_file) 
 	
 	def work_with_printer(img, file):
 		hDC = win32ui.CreateDC ()
@@ -386,7 +437,7 @@ def main(page: ft.Page):
 		hDC.DeleteDC ()
 
 	def json_load(conf_name):
-		global global_area, save_size_mode, worked_area, sizes, path_template, rgb_mode, printers, printer, config_name, log_path, select_file, select_floader, image_holder_settings, image_holder_floader, set_image, conf_open, w_path, progress
+		global global_area, save_size_mode, worked_area, sizes, path_template, rgb_mode, printers, printer, config_name, log_path, select_file, select_floader, image_holder_settings, image_holder_floader, set_image, conf_open, w_path, progress, tr
 		with open(log_path+f"/{conf_name}config.json", "r") as file:
 			data: dict = json.load(file)
 		config_name = conf_name
@@ -395,6 +446,7 @@ def main(page: ft.Page):
 		path_template = data["device"]["template"]
 		rgb_mode = data["image"]["mode"]["rgb"]
 		save_size_mode = data["image"]["mode"]["save_size"]
+		tr = data["image"]["color"]
 		global_area = data["image"]["global_area"]
 		worked_area = data["image"]["worked_area"]
 		sizes = data["image"]["sizes"]
@@ -422,11 +474,11 @@ def main(page: ft.Page):
 	def sl_update(e=None):
 		global worked_area, sizes, save_size_mode, tr
   
-		tf_wa_wh.value = sl_wa_wh.value
-		tf_wa_hg.value = sl_wa_hg.value
-		tf_sz_wh.value = sl_sz_wh.value
-		tf_sz_hg.value = sl_sz_hg.value
-		tf_ss_mod.value = sl_ss_mod.value
+		tf_wa_wh.value = int(sl_wa_wh.value)
+		tf_wa_hg.value = int(sl_wa_hg.value)
+		tf_sz_wh.value = int(sl_sz_wh.value)
+		tf_sz_hg.value = int(sl_sz_hg.value)
+		tf_ss_mod.value = int(sl_ss_mod.value)
 		tr = int(sl_tr.value)
   
 		worked_area = (sl_wa_wh.value, sl_wa_hg.value)
@@ -444,7 +496,6 @@ def main(page: ft.Page):
 		sl_sz_wh.value = tf_sz_wh.value
 		sl_sz_hg.value = tf_sz_hg.value
 		sl_ss_mod.value = tf_ss_mod.value
-		sl_tr.value = tf_tr.value
   
 		worked_area = (tf_wa_wh.value, tf_wa_hg.value)
 		if save_size_mode == "OFF":
@@ -616,17 +667,22 @@ def main(page: ft.Page):
 			config_name = False
 
 	def change_fp_page():
-		global dd_lang, dd_conf
+		global dd_lang, dd_conf, welc_row
 		op = [ft.dropdown.Option(i.split("config.json")[0]) for i in os.listdir(log_path) if "config.json" in i] + [ft.dropdown.Option(language.fp_no_conf)]
 		dd_lang = ft.Dropdown(width=400, options=[ft.dropdown.Option("ru"), ft.dropdown.Option("uk"), ft.dropdown.Option("ua")], on_change=swap_lang, value=language.lang)
 		dd_conf = (ft.Dropdown(width=400, options=op, on_change=change_conf, value=config_name) if config_name else ft.Dropdown(width=400, options=op, on_change=change_conf, value=language.fp_no_conf))
+		welc_row = welc_row = ft.Row([ft.Text("WELCOME", color=welc[page.theme_mode], size=50), ], alignment=ft.MainAxisAlignment.CENTER)
 
 	def change_theme_mode(e):
+		global welc_row
 		if page.theme_mode == "dark":
 			page.theme_mode = "light"
 		else:
 			page.theme_mode = "dark"
 		change_button("NEXT", ft.icons.ARROW_FORWARD, new_progress)
+		welc_row = ft.Row([ft.Text("WELCOME", color=welc[page.theme_mode], size=50), ], alignment=ft.MainAxisAlignment.CENTER)
+		page.clean()
+		page.add(gen_fp_page())
 		page.update()
 		with open(log_path+"/presets.json", "r") as file:
 			data: dict = json.load(file)
@@ -634,32 +690,51 @@ def main(page: ft.Page):
 		with open(log_path+"/presets.json", "w") as file:
 				json.dump(data, file, indent=4)
 
+	def change_zow_mod(e):
+		global zow
+		with open(log_path+"/presets.json", "r") as file:
+			data: dict = json.load(file)
+		data["zow"] = ((page.window.width, page.window.height), (False if e.data == "false" else True))
+		with open(log_path+"/presets.json", "w") as file:
+				json.dump(data, file, indent=4)
+		zow = (False if e.data == "false" else True)
+  
+	def page_close(e):
+		global zow
+		if e.data=='hide':
+			if zow:
+				with open(log_path+"/presets.json", "r") as file:
+					data: dict = json.load(file)
+				data["zow"] = ((page.window.width, page.window.height), zow)
+				with open(log_path+"/presets.json", "w") as file:
+						json.dump(data, file, indent=4)
+
 	def gen_fp_page():
 		change_fp_page()
 		if [i for i in os.listdir(log_path) if "config.json" in i] != []:
 			return ft.Column(
 				[
-					ft.Row([ft.Text("WELCOME"), ], alignment=ft.MainAxisAlignment.CENTER),
+					welc_row,
 					ft.Row([ft.Text(language.fp_lang), ], alignment=ft.MainAxisAlignment.CENTER),
 					ft.Row([dd_lang], alignment=ft.MainAxisAlignment.CENTER),
 					ft.Row([ft.Text(language.fp_config), ], alignment=ft.MainAxisAlignment.CENTER),
 					ft.Row([dd_conf, ], alignment=ft.MainAxisAlignment.CENTER),
-					ft.Row([ft.Checkbox(label=language.fp_dark_mode, on_change=change_theme_mode, value=(True if page.theme_mode == "dark" else False))], alignment=ft.MainAxisAlignment.CENTER)
+					ft.Row([ft.Checkbox(label=language.fp_zow, on_change=change_zow_mod, value=zow), ft.Checkbox(label=language.fp_dark_mode, on_change=change_theme_mode, value=(True if page.theme_mode == "dark" else False)), ], alignment=ft.MainAxisAlignment.CENTER)
 					
 				],
 				alignment=ft.MainAxisAlignment.CENTER,
 			)
 		return ft.Column(
 			[
-				ft.Row([ft.Text("WELCOME"), ], alignment=ft.MainAxisAlignment.CENTER),
+				welc_row,
 				ft.Row([ft.Text(language.fp_lang), ], alignment=ft.MainAxisAlignment.CENTER),
 				ft.Row([dd_lang], alignment=ft.MainAxisAlignment.CENTER),
-				ft.Row([ft.Checkbox(label=language.fp_dark_mode, on_change=change_theme_mode, value=(True if page.theme_mode == "dark" else False))], alignment=ft.MainAxisAlignment.CENTER)
+				ft.Row([ft.Checkbox(label=language.fp_zow, on_change=change_zow_mod, value=zow), ft.Checkbox(label=language.fp_dark_mode, on_change=change_theme_mode, value=(True if page.theme_mode == "dark" else False)), ], alignment=ft.MainAxisAlignment.CENTER)
 			],
 			alignment=ft.MainAxisAlignment.CENTER,
 		)
 
-	def img_update(set_image, show = False):
+	def img_update(set_image: Image, show = False):
 		global global_area, save_size_mode, worked_area, sizes, path_template, rgb_mode
 		rgb_mode = cb_rgb.value
 		path_template = select_file.value.split(language.pf_template_path)[1]
@@ -778,7 +853,7 @@ def main(page: ft.Page):
 		sl_sz_wh = ft.Slider(min=0, max=(global_area[0]), divisions=(global_area[0]), label="{value}", on_change=sl_update, value=sizes[0])
 		sl_sz_hg = ft.Slider(min=0, max=(global_area[1]), divisions=(global_area[1]), label="{value}", on_change=sl_update, value=sizes[1])
 		sl_ss_mod = ft.Slider(min=0, max=(max(global_area)), divisions=(max(global_area)), label="{value}", on_change=sl_update, value=max(sizes))
-		sl_tr = ft.Slider(min=0, max=int("FFFFFF", 16), divisions=100, label=f"", on_change=sl_update)
+		sl_tr = ft.Slider(min=0, max=int("FFFFFF", 16), divisions=100, label=f"", on_change=sl_update, value=tr)
 		tf_wa_wh = TextIntoSlider(value=worked_area[0])
 		tf_wa_hg = TextIntoSlider(value=worked_area[1])
 		tf_sz_wh = TextIntoSlider(value=sizes[0])
@@ -817,7 +892,7 @@ def main(page: ft.Page):
 								ft.Column(
 									[
 										image_holder_settings,
-										ft.Row([ft.OutlinedButton(text=language.set_button, on_click=open_img_button) ], alignment=ft.MainAxisAlignment.CENTER)
+										ft.Row([ft.OutlinedButton(text=language.set_button, on_click=open_img_button)], alignment=ft.MainAxisAlignment.CENTER)
 									]
 								)
 							], alignment=ft.MainAxisAlignment.CENTER
@@ -852,7 +927,7 @@ def main(page: ft.Page):
 								ft.Column(
 									[
 										image_holder_settings,
-										ft.Row([ft.OutlinedButton(text=language.set_button, on_click=open_img_button) ], alignment=ft.MainAxisAlignment.CENTER)
+										ft.Row([ft.OutlinedButton(text=language.set_button, on_click=open_img_button)], alignment=ft.MainAxisAlignment.CENTER)
 									]
 								)
 							], alignment=ft.MainAxisAlignment.CENTER
@@ -886,7 +961,7 @@ def main(page: ft.Page):
 		)
 
 	def save_conf(e=None):
-		global global_area, save_size_mode, worked_area, sizes, path_template, rgb_mode, printer, w_path, log_path
+		global global_area, save_size_mode, worked_area, sizes, path_template, rgb_mode, printer, w_path, log_path, tr
 		if end_tb.value != None:
 			if not os.path.exists(log_path+f"/{end_tb.value}config.json"):
 				with open(log_path+f"/{end_tb.value}config.json", "w") as file:
@@ -909,7 +984,8 @@ def main(page: ft.Page):
 						"mode": {
 							"rgb": rgb_mode, 
 							"save_size": save_size_mode
-						}, 
+						},
+						"color": tr,
 						"global_area": global_area,
 						"worked_area": worked_area, 
 						"sizes": sizes
@@ -978,15 +1054,8 @@ def main(page: ft.Page):
 			], alignment=ft.MainAxisAlignment.CENTER
 		)
 
-	
- 
+	page.on_app_lifecycle_state_change = page_close
 	start_log_func()
-
-	page.title = "Autoprinter"
-	page.vertical_alignment = ft.MainAxisAlignment.CENTER
-	page.theme_mode = theme
-
-	progress = [False, False, False, False]
 
 	file_img = ft.FilePicker(on_result=pick_img)
 	floader = ft.FilePicker(on_result=pick_folder)
@@ -997,6 +1066,6 @@ def main(page: ft.Page):
 	page.navigation_bar = change_nav()
 	page.add(gen_fp_page())
 
-
 ft.app(main)
+
 # ft.app(target=main, view=ft.AppView.WEB_BROWSER)
